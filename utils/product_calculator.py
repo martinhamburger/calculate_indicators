@@ -215,22 +215,20 @@ class ProductNetValueCalculator:
                 # 第一年：取该年的所有数据
                 g = self.df[self.df.index.year == year].copy()
             else:
-                # 获取上一年和当年的日期边界
-                # 对于倒序数据，iloc[0]是最新日期，iloc[-1]是最早日期
+                # 合并上一年年末和当年所有数据（倒序数据需要这样处理）
                 prev_year_data = self.df[self.df.index.year == years[i-1]]
                 current_year_data = self.df[self.df.index.year == year]
-                prev_year_last = prev_year_data.index[0]  # 上一年最新日期 = 上一年年末
-                current_year_first = current_year_data.index[0]  # 当年最新日期
-                if monthly:
-                    monthly_df = self.df.resample('ME').last()
-                    # 切片：从上一年年末到当年最新（正序切片）
-                    g = monthly_df.loc[prev_year_last: current_year_first].copy()
-                else:
-                    # 切片：从上一年年末到当年最新
-                    g = self.df.loc[prev_year_last: current_year_first].copy()
+                # 取上一年最后一条记录作为起始点
+                prev_last = prev_year_data.iloc[-1:].copy()
+                # 合并数据
+                g = pd.concat([prev_last, current_year_data])
 
             # 反转为正序（升序），以便正确计算expanding max
             g = g.sort_index()
+
+            if monthly:
+                # 月度数据需要重采样
+                g = g.resample('ME').last()
 
             g["年内最高"] = g["单位净值"].expanding().max()
             g['年内回撤'] = g['单位净值'] / g["年内最高"] - 1
