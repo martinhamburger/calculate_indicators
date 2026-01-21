@@ -379,12 +379,22 @@ class ProductNetValueCalculator:
                     col_letter = get_column_letter(i)
                     ws.column_dimensions[col_letter].width = min(adjusted_width, 50)  # 最大50防止过长
 
-                # 设置数值格式
+                # 设置数值格式（year列保持整数格式）
                 try:
+                    year_col_idx = None
+                    # 找到year列的位置
+                    for col_idx, col_name in enumerate(tmp.columns, 1):
+                        if str(col_name).lower() == 'year':
+                            year_col_idx = col_idx
+                            break
                     for r in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
                         for cell in r:
                             if isinstance(cell.value, (int, float)):
-                                cell.number_format = '0.0000'
+                                # year列保持整数格式
+                                if year_col_idx and cell.column == year_col_idx:
+                                    cell.number_format = '0'
+                                else:
+                                    cell.number_format = '0.0000'
                 except Exception:
                     pass
 
