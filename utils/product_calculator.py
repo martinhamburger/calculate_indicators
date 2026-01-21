@@ -96,7 +96,7 @@ class ProductNetValueCalculator:
 
         # 计算样本标准差
         variance = weekly_returns.var()  # pandas var() 使用 N-1
-        standard = variance ** 0.5
+        standard = variance ** 0.5 # type: ignore
 
         # 年化波动率 = 周波动率 * sqrt(52)
         annual_volatility = standard * (52 ** 0.5)
@@ -163,7 +163,7 @@ class ProductNetValueCalculator:
         df_1year_sorted = df_1year.sort_index()
         for idx in df_1year_sorted.index:
             if idx in df_with_prev.index:
-                df_1year_sorted.loc[idx, "近一年回撤"] = df_with_prev.loc[idx, "单位净值"] / df_with_prev.loc[idx, "近一年历史最高"] - 1
+                df_1year_sorted.loc[idx, "近一年回撤"] = df_with_prev.loc[idx, "单位净值"] / df_with_prev.loc[idx, "近一年历史最高"] - 1 # type: ignore
 
         # 找到近一年内的最大回撤
         max_drawback_1year = df_1year_sorted["近一年回撤"].min()
@@ -177,14 +177,14 @@ class ProductNetValueCalculator:
         """计算年度收益率（倒序数据：最新日期在前）"""
         records = []
         # 获取所有年份，按时间正序排列
-        years = sorted(self.df.index.year.unique())
+        years = sorted(self.df.index.year.unique())  # type: ignore
 
         # 初始为最早年份的年初价格（DataFrame最后一行的净值，即最早日期）
         last_year_end = self.df["单位净值"].iloc[-1]
 
         # 按时间正序遍历年份
         for year in years:
-            year_data = self.df[self.df.index.year == year]
+            year_data = self.df[self.df.index.year == year]  # type: ignore
             start_price = last_year_end  # 年初价格 = 上一年的年末价格
             end_price = year_data['单位净值'].iloc[0]  # 年末价格 = 该年最新净值（第一行）
             total_return = (end_price / start_price) - 1
@@ -208,16 +208,16 @@ class ProductNetValueCalculator:
             DataFrame: 年度最大回撤数据
         """
         records = []
-        years = sorted(self.df.index.year.unique())
+        years = sorted(self.df.index.year.unique())  # type: ignore
 
         for i, year in enumerate(years):
             if i == 0:
                 # 第一年：取该年的所有数据
-                g = self.df[self.df.index.year == year].copy()
+                g = self.df[self.df.index.year == year].copy()  # type: ignore
             else:
                 # 合并上一年年末和当年所有数据（倒序数据需要这样处理）
-                prev_year_data = self.df[self.df.index.year == years[i-1]]
-                current_year_data = self.df[self.df.index.year == year]
+                prev_year_data = self.df[self.df.index.year == years[i-1]]  # type: ignore
+                current_year_data = self.df[self.df.index.year == year]  # type: ignore
                 # 取上一年最后一条记录作为起始点
                 prev_last = prev_year_data.iloc[-1:].copy()
                 # 合并数据
@@ -233,7 +233,7 @@ class ProductNetValueCalculator:
             g["年内最高"] = g["单位净值"].expanding().max()
             g['年内回撤'] = g['单位净值'] / g["年内最高"] - 1
 
-            this_year_mask = (g.index.year == year)
+            this_year_mask = (g.index.year == year)  # type: ignore
             this_year_data = g[this_year_mask]
 
             if this_year_data.empty:
@@ -256,14 +256,14 @@ class ProductNetValueCalculator:
         """计算成立以来月度收益矩阵（倒序数据：最新日期在前）"""
         records = []
         # 获取所有年月组合，按时间正序排列
-        year_months = sorted(self.df.groupby([self.df.index.year, self.df.index.month]).groups.keys())
+        year_months = sorted(self.df.groupby([self.df.index.year, self.df.index.month]).groups.keys())  # type: ignore
 
         # 初始为最早月末价格（DataFrame最后一行的净值，即最早日期）
         last_month_end = self.df['单位净值'].iloc[-1]
 
         # 按时间正序遍历年月
         for (year, month) in year_months:
-            month_data = self.df[(self.df.index.year == year) & (self.df.index.month == month)]
+            month_data = self.df[(self.df.index.year == year) & (self.df.index.month == month)]  # type: ignore
             start_price = last_month_end  # 月初价格 = 上月末价格
             end_price = month_data['单位净值'].iloc[0]  # 月末价格 = 该月最新净值（第一行）
             month_return = (end_price / start_price) - 1
