@@ -53,6 +53,7 @@ class BuyAvgReturnCalculator:
     def get_open_day_data(self, day: int = 20):
         """
         获取指定日期的净值数据（开放日）
+        如果没找到指定日期，则顺延到下一个交易日
 
         Args:
             day: 开放日日期（默认20日）
@@ -68,8 +69,33 @@ class BuyAvgReturnCalculator:
         df['month'] = df.index.month  # type: ignore
         df['day'] = df.index.day  # type: ignore
 
-        # 筛选指定日期的记录
-        open_day_df = df[df['day'] == day].copy()
+        # 获取所有年月组合（按时间正序）
+        year_months = sorted(df.groupby([df.index.year, df.index.month]).groups.keys())  # type: ignore
+
+        open_day_records = []
+
+        for year, month in year_months:
+            month_data = df[(df.index.year == year) & (df.index.month == month)]  # type: ignore
+
+            # 尝试找指定日期的记录
+            target_day_data = month_data[month_data['day'] == day]
+
+            if not target_day_data.empty:
+                # 找到指定日期的记录，取第一条（最新）
+                open_day_records.append(target_day_data.iloc[0])
+            else:
+                # 没找到指定日期，顺延到下一个交易日
+                # 找该月>=指定日期的第一条记录
+                next_trading_data = month_data[month_data['day'] >= day]
+                if not next_trading_data.empty:
+                    open_day_records.append(next_trading_data.iloc[0])
+                # 如果当月没有>=指定日期的交易日，跳过该月
+
+        if open_day_records:
+            open_day_df = pd.DataFrame(open_day_records)
+            open_day_df.index.name = '日期'
+        else:
+            open_day_df = pd.DataFrame()
 
         self.open_day_df = open_day_df
         return open_day_df
