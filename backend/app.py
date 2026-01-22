@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS # type: ignore
+from flask_cors import CORS
 import os
 import tempfile
 import pandas as pd
@@ -27,6 +27,63 @@ def allowed_file(filename):
 def health_check():
     """健康检查接口"""
     return jsonify({'status': 'ok', 'message': 'API is running'})
+
+
+@app.route('/api/file-info', methods=['POST'])
+def file_info():
+    """获取上传文件的信息（用于诊断）"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': '未上传文件'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': '文件名为空'}), 400
+        
+        # 保存临时文件
+        filename = secure_filename(file.filename) # type: ignore
+        temp_dir = tempfile.mkdtemp()
+        filepath = os.path.join(temp_dir, filename)
+        file.save(filepath)
+        
+        # 读取文件信息
+        info = {
+            'filename': filename,
+            'file_size': os.path.getsize(filepath),
+        }
+        
+        # 尝试读取数据并获取列名
+        try:
+            if filename.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(filepath, nrows=1)
+            else:
+                # 尝试多种分隔符
+                try:
+                    df = pd.read_csv(filepath, sep='\t', nrows=1, encoding='utf-8')
+                except:
+                    try:
+                        df = pd.read_csv(filepath, sep=',', nrows=1, encoding='utf-8')
+                    except:
+                        df = pd.read_csv(filepath, nrows=1, encoding='utf-8')
+            
+            info['columns'] = list(df.columns)
+            info['shape'] = df.shape
+            info['dtypes'] = {col: str(df[col].dtype) for col in df.columns}
+            info['preview'] = df.to_dict('records')
+        except Exception as e:
+            info['error'] = f"无法读取数据: {str(e)}"
+        
+        # 清理临时文件
+        try:
+            os.remove(filepath)
+            os.rmdir(temp_dir)
+        except:
+            pass
+        
+        return jsonify(info)
+    
+    except Exception as e:
+        return jsonify({'error': f"诊断失败: {str(e)}"}), 500
 
 
 @app.route('/api/calculate', methods=['POST'])
@@ -87,15 +144,32 @@ def calculate_buy_avg(filepath, frequency):
     calculator = BuyAvgReturnCalculator() # type: ignore
     
     # 加载数据
-    if filepath.endswith(('.xlsx', '.xls')):
-        calculator.load_data(filepath) # type: ignore
-    else:
-        # 处理txt/csv文件
-        df = pd.read_csv(filepath, sep='\t', encoding='utf-8')
-        calculator.df = df
+    try:
+        if filepath.endswith(('.xlsx', '.xls')):
+            # 尝试使用 load_data 方法
+            calculator.load_data(filepath) # type: ignore
+        else:
+            # 处理 txt/csv 文件 - 尝试多种分隔符
+            try:
+                # 首先尝试 tab 分隔
+                df = pd.read_csv(filepath, sep='\t', encoding='utf-8')
+            except Exception:
+                try:
+                    # 如果失败，尝试逗号分隔
+                    df = pd.read_csv(filepath, sep=',', encoding='utf-8')
+                except Exception:
+                    # 最后尝试自动检测分隔符
+                    df = pd.read_csv(filepath, encoding='utf-8')
+            
+            calculator.df = df
+    except Exception as e:
+        raise Exception(f"数据加载失败: {str(e)}。请检查文件格式是否正确。")
     
     # 计算
-    result_df = calculator.calculate_returns() # type: ignore
+    try:
+        result_df = calculator.calculate_returns() # type: ignore
+    except Exception as e:
+        raise Exception(f"计算过程出错: {str(e)}。数据可能格式不符合要求。")
     
     # 生成输出
     output_lines = []
@@ -127,12 +201,33 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
     calculator = PeriodicBuyCalculator() # type: ignore
     
     # 加载数据
-    if filepath.endswith(('.xlsx', '.xls')):
-        calculator.load_data(filepath) # type: ignore
-    else:
-        df = pd.read_csv(filepath, sep='\t', encoding='utf-8')
-        calculator.df = df
-        calculator.df['净值日期'] = pd.to_datetime(calculator.df['净值日期'])
+    try:
+        if filepath.endswith(('.xlsx', '.xls')):
+            calculator.load_data(filepath) # type: ignore
+        else:
+            # 处理 txt/csv 文件 - 尝试多种分隔符
+            try:
+                df = pd.read_csv(filepath, sep='\t', encoding='utf-8')
+            except Exception:
+                try:
+                    df = pd.read_csv(filepath, sep=',', encoding='utf-8')
+                except Exception:
+                    df = pd.read_csv(filepath, encoding='utf-8')
+            
+            calculator.df = df
+            
+            # 处理日期列（兼容多种列名）
+            date_columns = ['净值日期', '日期', 'Date', 'date', '时间', '日期时间']
+            date_col = None
+            for col in date_columns:
+                if col in calculator.df.columns:
+                    date_col = col
+                    break
+            
+            if date_col:
+                calculator.df[date_col] = pd.to_datetime(calculator.df[date_col])
+    except Exception as e:
+        raise Exception(f"数据加载失败: {str(e)}。请检查文件格式。")
     
     # 选择买入规则
     if frequency == 'friday':
@@ -143,10 +238,13 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
         buy_rule = EveryFridayRule()
     
     # 计算
-    result = calculator.calculate_returns( # type: ignore
-        buy_rule=buy_rule,
-        amount_per_purchase=amount
-    )
+    try:
+        result = calculator.calculate_returns( # type: ignore
+            buy_rule=buy_rule,
+            amount_per_purchase=amount
+        )
+    except Exception as e:
+        raise Exception(f"计算过程出错: {str(e)}。数据可能格式不符合要求。")
     
     # 生成输出
     output_lines = []
