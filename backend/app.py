@@ -141,11 +141,13 @@ def calculate():
 
 
 def calculate_buy_avg(filepath, frequency):
-    """计算买入平均收益"""
+    """计算买入平均收益 - 计算每月20日开放日以来的收益（与频率无关）"""
     try:
+        # BuyAvgReturnCalculator 只需要文件路径，不需要频率参数
+        # 它始终计算每月20日开放日以来的收益
         calculator = BuyAvgReturnCalculator(filepath) # type: ignore
         
-        # 调用计算方法 - 使用 run_all() 返回结果字典
+        # 调用计算方法
         result_dict = calculator.run_all() # type: ignore
         
         # 获取产品信息
@@ -168,28 +170,28 @@ def calculate_buy_avg(filepath, frequency):
             'success': True,
             'output': output_text,
             'table_data': table_data,
-            'summary': f"计算完成：{product_info.get('name', '产品')} 的买入平均收益",
-            'filename': f'买入平均收益_{frequency}.txt'
+            'summary': f"计算完成：{product_info.get('name', '产品')} 的每月20日开放日买入平均收益",
+            'filename': f'买入平均收益.txt'
         }
     except Exception as e:
         raise Exception(f"买入平均收益计算失败: {str(e)}")
 
 
 def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
-    """计算定期买入收益"""
+    """计算定期买入收益 - 根据指定频率的买入规则计算收益"""
     try:
-        # 选择买入规则
+        # 根据频率参数选择买入规则
         if frequency == 'friday':
             buy_rule = EveryFridayRule()
         elif frequency == 'monthly':
             buy_rule = MonthlyDayRule(day=20)
         else:
-            buy_rule = EveryFridayRule()
+            buy_rule = EveryFridayRule()  # 默认使用每周五规则
         
-        # 初始化计算器
+        # 初始化计算器 - PeriodicBuyCalculator 需要 file_path 和 buy_rule
         calculator = PeriodicBuyCalculator(filepath, buy_rule) # type: ignore
         
-        # 调用计算方法 - 使用 calculate_buy_returns() 返回结果
+        # 调用计算方法
         results_df = calculator.calculate_buy_returns()
         
         # 获取产品信息
@@ -218,7 +220,7 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
             'success': True,
             'output': output_text,
             'table_data': table_data,
-            'summary': f"定期买入计算完成: 共 {total_purchases} 次买入，平均收益率 {avg_return*100:.4f}%",
+            'summary': f"定期买入计算完成: 买入规则={frequency}, 共 {total_purchases} 次买入，平均收益率 {avg_return*100:.4f}%",
             'filename': f'定期买入_{frequency}.txt'
         }
     except Exception as e:
@@ -226,12 +228,13 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
 
 
 def calculate_normal(filepath, frequency):
-    """常规计算 - 产品净值和业绩指标"""
+    """常规计算 - 产品净值和业绩指标（与频率无关）"""
     try:
-        # 使用 ProductNetValueCalculator
+        # ProductNetValueCalculator 只需要文件路径和可选的 risk_free_rate
+        # 不需要频率参数，计算的是所有业绩指标
         calculator = ProductNetValueCalculator(filepath)
         
-        # 执行计算 - 使用 run_all_calculations()
+        # 执行计算
         calculator.run_all_calculations()
         
         # 获取产品信息 - 返回元组 (product_name, latest_nav_date, latest_nav)
@@ -292,7 +295,7 @@ def calculate_normal(filepath, frequency):
             'output': output_text,
             'table_data': table_data,
             'summary': f"净值计算完成：{product_name}",
-            'filename': f'净值计算_{frequency}.txt'
+            'filename': f'净值计算.txt'
         }
     except Exception as e:
         raise Exception(f"常规计算失败: {str(e)}")
