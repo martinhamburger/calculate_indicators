@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Card, Upload, Button, Select, DatePicker, Space, message, Spin, Table, Divider } from 'antd';
-import { UploadOutlined, CalculatorOutlined, DownloadOutlined, LineChartOutlined } from '@ant-design/icons';
+import { Layout, Menu, Card, Upload, Button, Select, DatePicker, Space, message, Spin, Table, Divider, Tabs } from 'antd';
+import { UploadOutlined, CalculatorOutlined, DownloadOutlined, LineChartOutlined, FileExcelOutlined, FileTextOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import './App.css';
 
@@ -58,6 +58,64 @@ function App() {
     const a = document.createElement('a');
     a.href = url;
     a.download = result.filename || 'result.txt';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadExcel = async () => {
+    if (!fileList || fileList.length === 0) {
+      message.warning('请先上传文件');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const formData = new FormData();
+      formData.append('file', fileList[0].originFileObj);
+      formData.append('frequency', params.frequency);
+      
+      const response = await axios.post('/api/download-excel', formData, {
+        responseType: 'blob',
+      });
+      
+      // 从响应头中获取文件名
+      const contentDisposition = response.headers['content-disposition'];
+      let downloadName = '净值计算.xlsx';
+      if (contentDisposition) {
+        const filename = decodeURIComponent(contentDisposition.split('filename=')[1]?.replace(/"/g, '') || downloadName);
+        downloadName = filename;
+      }
+      
+      // 下载文件
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', downloadName);
+      document.body.appendChild(link);
+      link.click();
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Excel文件下载成功');
+    } catch (error) {
+      message.error('Excel文件下载失败: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadSummary = () => {
+    if (!result) return;
+    
+    // 下载汇总信息
+    const summaryText = `产品名称: ${result.product_name || '未知'}\n\n${result.summary || ''}\n\n${result.output || ''}`;
+    const blob = new Blob([summaryText], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `汇总_${result.product_name || 'result'}.txt`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -187,15 +245,78 @@ function App() {
               title="计算结果" 
               style={{ marginTop: '24px' }}
               extra={
-                <Button 
-                  type="primary" 
-                  icon={<DownloadOutlined />}
-                  onClick={handleDownload}
-                >
-                  下载结果
-                </Button>
+                <Space>
+                  {result.sheets_data && (
+                    <>
+                      <Button 
+                        type="primary" 
+                        icon={<FileExcelOutlined />}
+                        onClick={handleDownloadExcel}
+                      >
+                        下载为Excel
+                      </Button>
+                      <Button 
+                        icon={<FileTextOutlined />}
+                        onClick={handleDownloadSummary}
+                      >
+                        下载汇总表
+                      </Button>
+                    </>
+                  )}
+                  <Button 
+                    type="primary" 
+                    icon={<DownloadOutlined />}
+                    onClick={handleDownload}
+                  >
+                    下载结果
+                  </Button>
+                </Space>
               }
             >
+              {/* 常规计算：多Sheet展示 */}
+              {result.sheets_data && (
+                <>
+                  <Tabs
+                    defaultActiveKey="0"
+                    style={{ marginBottom: '24px' }}
+                    items={Object.entries(result.sheets_data).map((item, index) => {
+                      const [sheetName, sheetData] = item;
+                      return {
+                        key: index.toString(),
+                        label: sheetName,
+                        children: (
+                          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                            {sheetData && sheetData.length > 0 ? (
+                              <Table
+                                dataSource={sheetData}
+                                columns={sheetData[0] ? Object.keys(sheetData[0]).map(key => ({
+                                  title: key,
+                                  dataIndex: key,
+                                  key: key,
+                                  render: (text) => {
+                                    // 格式化数字，四位小数
+                                    if (typeof text === 'number') {
+                                      return text.toFixed(4);
+                                    }
+                                    return text;
+                                  }
+                                })) : []}
+                                pagination={{ pageSize: 20 }}
+                                scroll={{ x: 'max-content' }}
+                                size="small"
+                              />
+                            ) : (
+                              <p>无数据</p>
+                            )}
+                          </div>
+                        )
+                      };
+                    })}
+                  />
+                  <Divider />
+                </>
+              )}
+
               {result.summary && (
                 <>
                   <div style={{ marginBottom: '20px' }}>

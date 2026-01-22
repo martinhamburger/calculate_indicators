@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
 import tempfile
 import pandas as pd
 from werkzeug.utils import secure_filename
 import sys
+from io import BytesIO
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -259,8 +260,12 @@ def calculate_normal(filepath, frequency):
         else:
             product_name, latest_nav_date, latest_nav = '未知', '未知', '未知'
         
-        # 构建业绩指标数据框
+        # 构建所有数据表
         metrics_df = calculator.build_metrics_df()
+        annual_returns_df = calculator.get_annual_returns()
+        weekly_dd = calculator.get_annual_max_drawdown(monthly=False)
+        monthly_dd = calculator.get_annual_max_drawdown(monthly=True)
+        monthly_matrix = calculator.get_monthly_return_matrix()
         
         # 生成输出文本
         output_lines = []
@@ -290,30 +295,80 @@ def calculate_normal(filepath, frequency):
         
         output_text = "\n".join(output_lines)
         
-        # 生成表格数据 - 格式化百分比
-        table_data = []
-        if isinstance(metrics_df, pd.DataFrame):
-            df_display = metrics_df.copy()
-            # 格式化收益率、波动率、回撤等为百分比
-            for col in df_display.columns:
-                try:
-                    if isinstance(df_display[col].iloc[0], (int, float)) and ('收益' in col or '波动' in col or '回撤' in col):
-                        df_display[col] = df_display[col].apply(lambda x: f"{x*100:.4f}%" if isinstance(x, (int, float)) else str(x))
-                    elif isinstance(df_display[col].iloc[0], (int, float)) and col == '夏普比率':
-                        df_display[col] = df_display[col].apply(lambda x: f"{x:.4f}" if isinstance(x, (int, float)) else str(x))
-                except:
-                    pass
-            table_data = df_display.reset_index().to_dict('records')
+        # 生成多个sheet的数据
+        sheets_data = {
+            '业绩指标计算': metrics_df.reset_index().to_dict('records') if isinstance(metrics_df, pd.DataFrame) else [],
+            '年度收益率': annual_returns_df.reset_index().to_dict('records') if isinstance(annual_returns_df, pd.DataFrame) else [],
+            '周频计算历史最大回撤': weekly_dd.reset_index().to_dict('records') if isinstance(weekly_dd, pd.DataFrame) else [],
+            '月频计算历史最大回撤': monthly_dd.reset_index().to_dict('records') if isinstance(monthly_dd, pd.DataFrame) else [],
+            '成立以来月度收益': monthly_matrix.reset_index().to_dict('records') if isinstance(monthly_matrix, pd.DataFrame) else []
+        }
         
         return {
             'success': True,
             'output': output_text,
-            'table_data': table_data,
+            'table_data': metrics_df.reset_index().to_dict('records') if isinstance(metrics_df, pd.DataFrame) else [],
+            'sheets_data': sheets_data,
+            'product_name': product_name,
             'summary': f"净值计算完成：{product_name}",
             'filename': f'净值计算.txt'
         }
     except Exception as e:
         raise Exception(f"常规计算失败: {str(e)}")
+
+
+@app.route('/api/download-excel', methods=['POST'])
+def download_excel():
+    """下载Excel文件"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': '未上传文件'}), 400
+        
+        frequency = request.form.get('frequency', 'daily')
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': '文件名为空'}), 400
+        
+        # 保存临时文件
+        filename = secure_filename(file.filename) # type: ignore
+        temp_dir = tempfile.mkdtemp()
+        filepath = os.path.join(temp_dir, filename)
+        file.save(filepath)
+        
+        try:
+            # 获取原始数据
+            data = process_single_file(filepath)
+            if data is None or data.empty:
+                return jsonify({'error': '文件为空或格式错误'}), 400
+            
+            # 执行常规计算
+            product_name = data.columns[0] if not data.columns.empty else '产品'
+            calculator = ProductNetValueCalculator(filepath)
+            calculator.run_all_calculations()
+            
+            # 保存到临时Excel文件
+            output_file = os.path.join(temp_dir, 'output.xlsx')
+            calculator.save_to_excel(output_file)
+            
+            # 读取文件并返回
+            with open(output_file, 'rb') as f:
+                file_data = f.read()
+            
+            # 返回文件
+            response = send_file(
+                BytesIO(file_data),
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=f'{product_name}_净值计算.xlsx'
+            )
+            return response
+        finally:
+            # 清理临时文件
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    except Exception as e:
+        return jsonify({'error': f'下载失败: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
