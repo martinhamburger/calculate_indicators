@@ -103,14 +103,14 @@ function App() {
               {/* 上传文件 */}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                  上传净值列表文件：
+                  上传净值列表文件（.xlsx/.xls/.csv/.txt）：
                 </label>
                 <Upload
                   fileList={fileList}
                   onChange={handleUpload}
                   beforeUpload={() => false}
                   maxCount={1}
-                  accept=".txt,.csv"
+                  accept=".txt,.csv,.xlsx,.xls"
                 >
                   <Button icon={<UploadOutlined />}>选择文件</Button>
                 </Upload>
