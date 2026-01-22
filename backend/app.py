@@ -225,8 +225,12 @@ def calculate_normal(filepath, frequency):
         # 执行计算 - 使用 run_all_calculations()
         calculator.run_all_calculations()
         
-        # 获取产品信息
+        # 获取产品信息 - 返回元组 (product_name, latest_nav_date, latest_nav)
         product_info = calculator.get_product_info()
+        if product_info:
+            product_name, latest_nav_date, latest_nav = product_info
+        else:
+            product_name, latest_nav_date, latest_nav = '未知', '未知', '未知'
         
         # 构建业绩指标数据框
         metrics_df = calculator.build_metrics_df()
@@ -236,9 +240,9 @@ def calculate_normal(filepath, frequency):
         output_lines.append("=" * 80)
         output_lines.append("产品净值计算结果")
         output_lines.append("=" * 80)
-        output_lines.append(f"\n产品名称: {product_info.get('name', '未知')}")
-        output_lines.append(f"产品代码: {product_info.get('code', '未知')}")
-        output_lines.append(f"数据范围: {product_info.get('date_range', '未知')}")
+        output_lines.append(f"\n产品名称: {product_name}")
+        output_lines.append(f"最新净值日期: {latest_nav_date}")
+        output_lines.append(f"最新净值: {latest_nav}")
         
         output_lines.append("\n业绩指标：")
         if isinstance(metrics_df, pd.DataFrame) and not metrics_df.empty:
@@ -259,7 +263,7 @@ def calculate_normal(filepath, frequency):
             'success': True,
             'output': output_text,
             'table_data': table_data,
-            'summary': f"净值计算完成：{product_info.get('name', '产品')}",
+            'summary': f"净值计算完成：{product_name}",
             'filename': f'净值计算_{frequency}.txt'
         }
     except Exception as e:
