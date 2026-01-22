@@ -105,8 +105,7 @@ def calculate():
         # 获取参数
         calc_type = request.form.get('type', 'buy_avg')
         frequency = request.form.get('frequency', 'friday')
-        start_date = request.form.get('start_date')
-        end_date = request.form.get('end_date')
+        start_date = request.form.get('start_date')  # 初始日期
         
         # 保存临时文件
         filename = secure_filename(file.filename) # type: ignore
@@ -118,7 +117,7 @@ def calculate():
         if calc_type == 'buy_avg':
             result = calculate_buy_avg(filepath, frequency)
         elif calc_type == 'periodic_buy':
-            result = calculate_periodic_buy(filepath, frequency, start_date, end_date)
+            result = calculate_periodic_buy(filepath, frequency, start_date)
         elif calc_type == 'calculate':
             result = calculate_normal(filepath, frequency)
         else:
@@ -188,7 +187,7 @@ def calculate_buy_avg(filepath, frequency):
         raise Exception(f"买入平均收益计算失败: {str(e)}")
 
 
-def calculate_periodic_buy(filepath, frequency, start_date, end_date):
+def calculate_periodic_buy(filepath, frequency, start_date):
     """计算定期买入收益 - 根据指定频率的买入规则计算收益"""
     try:
         # 根据频率参数选择买入规则
@@ -204,6 +203,12 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date):
         
         # 调用计算方法
         results_df = calculator.calculate_buy_returns()
+        
+        # 如果指定了初始日期，过滤掉初始日期之前的买入记录
+        if start_date and isinstance(results_df, pd.DataFrame) and not results_df.empty:
+            import pandas as pd
+            start_date_obj = pd.to_datetime(start_date)
+            results_df = results_df[pd.to_datetime(results_df['买入日期']) >= start_date_obj]
         
         # 获取产品信息
         product_info = calculator.get_product_info()

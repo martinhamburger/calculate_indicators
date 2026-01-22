@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Card, Upload, Button, Select, DatePicker, InputNumber, Space, message, Spin, Table, Divider } from 'antd';
+import { Layout, Menu, Card, Upload, Button, Select, DatePicker, Space, message, Spin, Table, Divider } from 'antd';
 import { UploadOutlined, CalculatorOutlined, DownloadOutlined, LineChartOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import './App.css';
 
 const { Header, Content, Footer } = Layout;
 const { Option } = Select;
-const { RangePicker } = DatePicker;
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -15,7 +14,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [params, setParams] = useState({
     frequency: 'friday',
-    dateRange: null
+    startDate: null
   });
 
   const handleUpload = ({ fileList: newFileList }) => {
@@ -33,9 +32,8 @@ function App() {
     formData.append('file', fileList[0].originFileObj);
     formData.append('type', calculationType);
     formData.append('frequency', params.frequency);
-    if (params.dateRange) {
-      formData.append('start_date', params.dateRange[0].format('YYYY-MM-DD'));
-      formData.append('end_date', params.dateRange[1].format('YYYY-MM-DD'));
+    if (params.startDate) {
+      formData.append('start_date', params.startDate.format('YYYY-MM-DD'));
     }
     const response = await axios.post('/api/calculate', formData, {
       headers: {
@@ -145,15 +143,16 @@ function App() {
                 </div>
               )}
 
-              {/* 日期范围 */}
+              {/* 初始日期 */}
               {calculationType === 'periodic_buy' && (
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                    日期范围（可选）：
+                    初始买入日期（可选，默认从数据起始日）：
                   </label>
-                  <RangePicker
-                    onChange={(dates) => setParams({ ...params, dateRange: dates })}
+                  <DatePicker
+                    onChange={(date) => setParams({ ...params, startDate: date })}
                     style={{ width: 300 }}
+                    placeholder="选择初始日期"
                   />
                 </div>
               )}
