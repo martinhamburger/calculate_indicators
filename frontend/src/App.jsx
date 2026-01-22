@@ -35,11 +35,12 @@ function App() {
     if (params.startDate) {
       formData.append('start_date', params.startDate.format('YYYY-MM-DD'));
     }
-    const response = await axios.post('/api/calculate', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    try {
+      const response = await axios.post('/api/calculate', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
       setResult(response.data);
       message.success('计算完成！');
     } catch (error) {

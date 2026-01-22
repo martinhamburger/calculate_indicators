@@ -160,14 +160,14 @@ def calculate_buy_avg(filepath, frequency):
             # 创建包含收益率的表格
             records = []
             for idx, row in calculator.open_day_df.iterrows():
-                year = idx.year
-                month = idx.month
+                year = idx.year # type: ignore
+                month = idx.month # type: ignore
                 
                 # 从 results 字典中获取收益率
                 return_rate = calculator.results.get(year, {}).get(month, 0)
                 
                 records.append({
-                    '日期': idx.strftime('%Y-%m-%d'),
+                    '日期': idx.strftime('%Y-%m-%d'), # type: ignore
                     '年': year,
                     '月': month,
                     '开放日净值': f"{row['单位净值']:.4f}",
