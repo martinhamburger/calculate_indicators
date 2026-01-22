@@ -313,7 +313,7 @@ def calculate_normal(filepath, frequency):
                         if pd.isna(val):
                             record[col] = None
                         # 处理日期时间
-                        elif isinstance(val, (pd.Timestamp, pd.datetime64)):
+                        elif isinstance(val, (pd.Timestamp, pd.datetime64)): # type: ignore
                             record[col] = str(val.date()) if hasattr(val, 'date') else str(val)
                         # 处理numpy类型
                         elif isinstance(val, (np.integer, np.floating)):
