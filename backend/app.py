@@ -157,13 +157,25 @@ def calculate_buy_avg(filepath, frequency):
         
         # 生成表格数据（买入开放日的平均收益）
         table_data = []
-        if hasattr(calculator, 'open_day_df') and isinstance(calculator.open_day_df, pd.DataFrame):
-            # 转换为可显示的格式
-            df_display = calculator.open_day_df.copy()
-            # 如果有收益率列，格式化为百分比（4位小数）
-            if '平均收益' in df_display.columns:
-                df_display['平均收益'] = df_display['平均收益'].apply(lambda x: f"{x*100:.4f}%")
-            table_data = df_display.reset_index().to_dict('records')
+        if hasattr(calculator, 'open_day_df') and isinstance(calculator.open_day_df, pd.DataFrame) and calculator.results:
+            # 创建包含收益率的表格
+            records = []
+            for idx, row in calculator.open_day_df.iterrows():
+                year = idx.year
+                month = idx.month
+                
+                # 从 results 字典中获取收益率
+                return_rate = calculator.results.get(year, {}).get(month, 0)
+                
+                records.append({
+                    '日期': idx.strftime('%Y-%m-%d'),
+                    '年': year,
+                    '月': month,
+                    '开放日净值': f"{row['单位净值']:.4f}",
+                    '买入收益率': f"{return_rate*100:.4f}%"
+                })
+            
+            table_data = records
         
         return {
             'success': True,
