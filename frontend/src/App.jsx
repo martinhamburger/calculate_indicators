@@ -7,6 +7,9 @@ import './App.css';
 const { Header, Content, Footer } = Layout;
 const { Option } = Select;
 
+// 获取API基础URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 function App() {
   const [loading, setLoading] = useState(false);
   const [calculationType, setCalculationType] = useState('buy_avg');
@@ -47,11 +50,11 @@ function App() {
           key: 'calc',
         });
         
-        const response = await axios.post('/api/calculate', formData, {
+        const response = await axios.post(`${API_BASE_URL}/api/calculate`, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
-        });
+        })
         
         // 为每个结果添加文件名标识
         const resultWithFileName = {
@@ -110,7 +113,7 @@ function App() {
       formData.append('file', file);
       formData.append('frequency', params.frequency);
       
-      const response = await axios.post('/api/download-excel', formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/download-excel`, formData, {
         responseType: 'blob',
       });
       
