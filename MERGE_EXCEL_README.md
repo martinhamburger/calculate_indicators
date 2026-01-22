@@ -1,11 +1,9 @@
 省流：
 打开main文件夹并在终端输入：
 ```bash
-python merge_excel.py \
-  -p "买入平均收益_净值列表/日度净值_产品*.xlsx" \
-  -s 20240101 \
+python merge_excel.py   -p "买入平均收益_净值列表/日度净值_产品*.xlsx"   -s 20240101   --rule friday
 ```
-就可以得到一个 `日度净值_合并.xlsx`
+就可以得到一个 `买入收益_每周五买入.xlsx`
 
 # merge_excel.py - 多产品Excel合并与收益计算工具
 
