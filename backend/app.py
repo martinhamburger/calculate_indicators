@@ -206,9 +206,8 @@ def calculate_periodic_buy(filepath, frequency, start_date):
         
         # 如果指定了初始日期，过滤掉初始日期之前的买入记录
         if start_date and isinstance(results_df, pd.DataFrame) and not results_df.empty:
-            import pandas as pd
-            start_date_obj = pd.to_datetime(start_date)
-            results_df = results_df[pd.to_datetime(results_df['买入日期']) >= start_date_obj]
+            start_date_obj = pd.to_datetime(start_date) # type: ignore
+            results_df = results_df[pd.to_datetime(results_df['买入日期']) >= start_date_obj] # type: ignore
         
         # 获取产品信息
         product_info = calculator.get_product_info()
