@@ -8,6 +8,7 @@ from .buy_rules import (
     BuyRule, EveryFridayRule, MonthlyDayRule, 
     SpecificDateRule, WeeklyRule, get_rule_by_name
 )
+from .multi_product_processor import MultiProductExcelProcessor
 
 __all__ = [
     'ProductNetValueCalculator', 
@@ -20,5 +21,6 @@ __all__ = [
     'MonthlyDayRule',
     'SpecificDateRule',
     'WeeklyRule',
-    'get_rule_by_name'
+    'get_rule_by_name',
+    'MultiProductExcelProcessor'
 ]
