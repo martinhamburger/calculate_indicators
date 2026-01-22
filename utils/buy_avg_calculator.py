@@ -81,14 +81,16 @@ class BuyAvgReturnCalculator:
             target_day_data = month_data[month_data['day'] == day]
 
             if not target_day_data.empty:
-                # 找到指定日期的记录，取第一条（最新）
+                # 找到指定日期的记录
                 open_day_records.append(target_day_data.iloc[0])
             else:
                 # 没找到指定日期，顺延到下一个交易日
-                # 找该月>=指定日期的第一条记录
+                # 找该月>=指定日期的第一条记录（取日期最小的，即最接近指定日期的下一天）
                 next_trading_data = month_data[month_data['day'] >= day]
                 if not next_trading_data.empty:
-                    open_day_records.append(next_trading_data.iloc[0])
+                    # 按日期排序，取最早的（最接近指定日期的下一天）
+                    next_trading_data_sorted = next_trading_data.sort_index()
+                    open_day_records.append(next_trading_data_sorted.iloc[0])
                 # 如果当月没有>=指定日期的交易日，跳过该月
 
         if open_day_records:
