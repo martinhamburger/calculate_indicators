@@ -159,9 +159,9 @@ def calculate_buy_avg(filepath, frequency):
         if hasattr(calculator, 'open_day_df') and isinstance(calculator.open_day_df, pd.DataFrame):
             # 转换为可显示的格式
             df_display = calculator.open_day_df.copy()
-            # 如果有收益率列，格式化为百分比
+            # 如果有收益率列，格式化为百分比（4位小数）
             if '平均收益' in df_display.columns:
-                df_display['平均收益'] = df_display['平均收益'].apply(lambda x: f"{x:.2%}")
+                df_display['平均收益'] = df_display['平均收益'].apply(lambda x: f"{x*100:.4f}%")
             table_data = df_display.reset_index().to_dict('records')
         
         return {
@@ -198,8 +198,17 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
         # 生成格式化输出文本
         output_text = calculator.format_output_text(preview_count=20)
         
-        # 生成完整表格数据
-        table_data = results_df.reset_index().to_dict('records') if isinstance(results_df, pd.DataFrame) else []
+        # 生成完整表格数据 - 格式化收益率为百分比
+        table_data = []
+        if isinstance(results_df, pd.DataFrame):
+            df_display = results_df.copy()
+            # 格式化收益率列为百分比（4位小数）
+            for col in df_display.columns:
+                if '收益' in col or '收益率' in col:
+                    df_display[col] = df_display[col].apply(lambda x: f"{x*100:.4f}%")
+                elif col == '每日涨跌幅':
+                    df_display[col] = df_display[col].apply(lambda x: f"{x*100:.4f}%")
+            table_data = df_display.reset_index().to_dict('records')
         
         # 计算汇总信息
         total_purchases = len(results_df) if isinstance(results_df, pd.DataFrame) else 0
@@ -209,7 +218,7 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
             'success': True,
             'output': output_text,
             'table_data': table_data,
-            'summary': f"定期买入计算完成: 共 {total_purchases} 次买入，平均收益率 {avg_return:.2%}",
+            'summary': f"定期买入计算完成: 共 {total_purchases} 次买入，平均收益率 {avg_return*100:.4f}%",
             'filename': f'定期买入_{frequency}.txt'
         }
     except Exception as e:
@@ -246,18 +255,37 @@ def calculate_normal(filepath, frequency):
         
         output_lines.append("\n业绩指标：")
         if isinstance(metrics_df, pd.DataFrame) and not metrics_df.empty:
-            # 将指标数据写入输出
+            # 将指标数据写入输出 - 格式化百分比为4位小数
             for _, row in metrics_df.iterrows():
                 for col in metrics_df.columns:
                     value = row[col]
-                    output_lines.append(f"{col}: {value}")
+                    # 格式化数字值：收益率类保留4位小数并转为百分比
+                    if isinstance(value, (int, float)):
+                        if '收益' in col or '波动' in col or '回撤' in col:
+                            output_lines.append(f"{col}: {value*100:.4f}%")
+                        elif col == '夏普比率':
+                            output_lines.append(f"{col}: {value:.4f}")
+                        else:
+                            output_lines.append(f"{col}: {value:.4f}")
+                    else:
+                        output_lines.append(f"{col}: {value}")
         
         output_text = "\n".join(output_lines)
         
-        # 生成表格数据
+        # 生成表格数据 - 格式化百分比
         table_data = []
         if isinstance(metrics_df, pd.DataFrame):
-            table_data = metrics_df.reset_index().to_dict('records')
+            df_display = metrics_df.copy()
+            # 格式化收益率、波动率、回撤等为百分比
+            for col in df_display.columns:
+                try:
+                    if isinstance(df_display[col].iloc[0], (int, float)) and ('收益' in col or '波动' in col or '回撤' in col):
+                        df_display[col] = df_display[col].apply(lambda x: f"{x*100:.4f}%" if isinstance(x, (int, float)) else str(x))
+                    elif isinstance(df_display[col].iloc[0], (int, float)) and col == '夏普比率':
+                        df_display[col] = df_display[col].apply(lambda x: f"{x:.4f}" if isinstance(x, (int, float)) else str(x))
+                except:
+                    pass
+            table_data = df_display.reset_index().to_dict('records')
         
         return {
             'success': True,
