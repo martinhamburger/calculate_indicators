@@ -42,6 +42,8 @@ function App() {
         }
       });
       setResult(response.data);
+      console.log('计算完成，结果:', response.data);
+      console.log('sheets_data:', response.data.sheets_data);
       message.success('计算完成！');
     } catch (error) {
       message.error('计算失败：' + (error.response?.data?.error || error.message));

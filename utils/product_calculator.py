@@ -177,7 +177,7 @@ class ProductNetValueCalculator:
         """计算年度收益率（倒序数据：最新日期在前）"""
         records = []
         # 获取所有年份，按时间正序排列
-        years = sorted(self.df.index.year.unique())  # type: ignore
+        years = sorted([int(y) for y in self.df.index.year.unique() if pd.notna(y)])  # type: ignore
 
         # 初始为最早年份的年初价格（DataFrame最后一行的净值，即最早日期）
         last_year_end = self.df["单位净值"].iloc[-1]
@@ -208,7 +208,7 @@ class ProductNetValueCalculator:
             DataFrame: 年度最大回撤数据
         """
         records = []
-        years = sorted(self.df.index.year.unique())  # type: ignore
+        years = sorted([int(y) for y in self.df.index.year.unique() if pd.notna(y)])  # type: ignore
 
         for i, year in enumerate(years):
             if i == 0:
@@ -256,7 +256,7 @@ class ProductNetValueCalculator:
         """计算成立以来月度收益矩阵（倒序数据：最新日期在前）"""
         records = []
         # 获取所有年月组合，按时间正序排列
-        year_months = sorted(self.df.groupby([self.df.index.year, self.df.index.month]).groups.keys())  # type: ignore
+        year_months = sorted([(int(y), int(m)) for y, m in self.df.groupby([self.df.index.year, self.df.index.month]).groups.keys() if pd.notna(y) and pd.notna(m)])  # type: ignore
 
         # 初始为最早月末价格（DataFrame最后一行的净值，即最早日期）
         last_month_end = self.df['单位净值'].iloc[-1]

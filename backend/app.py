@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 import tempfile
 import pandas as pd
+import numpy as np
 from werkzeug.utils import secure_filename
 import sys
 from io import BytesIO
@@ -295,13 +296,43 @@ def calculate_normal(filepath, frequency):
         
         output_text = "\n".join(output_lines)
         
+        # 生成多个sheet的数据，确保可序列化
+        def df_to_records(df):
+            """将DataFrame安全地转换为可序列化的记录列表"""
+            if df is None or not isinstance(df, pd.DataFrame):
+                return []
+            try:
+                # 重置索引，确保索引变成列
+                df_reset = df.reset_index()
+                # 将所有值转换为Python原生类型，处理NaN和日期
+                records = []
+                for _, row in df_reset.iterrows():
+                    record = {}
+                    for col, val in row.items():
+                        # 处理NaN
+                        if pd.isna(val):
+                            record[col] = None
+                        # 处理日期时间
+                        elif isinstance(val, (pd.Timestamp, pd.datetime64)):
+                            record[col] = str(val.date()) if hasattr(val, 'date') else str(val)
+                        # 处理numpy类型
+                        elif isinstance(val, (np.integer, np.floating)):
+                            record[col] = float(val) if isinstance(val, np.floating) else int(val)
+                        else:
+                            record[col] = val
+                    records.append(record)
+                return records
+            except Exception as e:
+                print(f"转换DataFrame失败: {str(e)}")
+                return []
+        
         # 生成多个sheet的数据
         sheets_data = {
-            '业绩指标计算': metrics_df.reset_index().to_dict('records') if isinstance(metrics_df, pd.DataFrame) else [],
-            '年度收益率': annual_returns_df.reset_index().to_dict('records') if isinstance(annual_returns_df, pd.DataFrame) else [],
-            '周频计算历史最大回撤': weekly_dd.reset_index().to_dict('records') if isinstance(weekly_dd, pd.DataFrame) else [],
-            '月频计算历史最大回撤': monthly_dd.reset_index().to_dict('records') if isinstance(monthly_dd, pd.DataFrame) else [],
-            '成立以来月度收益': monthly_matrix.reset_index().to_dict('records') if isinstance(monthly_matrix, pd.DataFrame) else []
+            '业绩指标计算': df_to_records(metrics_df),
+            '年度收益率': df_to_records(annual_returns_df),
+            '周频计算历史最大回撤': df_to_records(weekly_dd),
+            '月频计算历史最大回撤': df_to_records(monthly_dd),
+            '成立以来月度收益': df_to_records(monthly_matrix)
         }
         
         return {
