@@ -335,6 +335,11 @@ def calculate_normal(filepath, frequency):
             '成立以来月度收益': df_to_records(monthly_matrix)
         }
         
+        # 调试日志
+        print(f"sheets_data keys: {sheets_data.keys()}")
+        for key, data in sheets_data.items():
+            print(f"{key}: {len(data) if isinstance(data, list) else 'not a list'} records")
+        
         return {
             'success': True,
             'output': output_text,

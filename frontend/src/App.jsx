@@ -28,14 +28,17 @@ function App() {
     }
 
     setLoading(true);
-    const formData = new FormData();
-    formData.append('file', fileList[0].originFileObj);
-    formData.append('type', calculationType);
-    formData.append('frequency', params.frequency);
-    if (params.startDate) {
-      formData.append('start_date', params.startDate.format('YYYY-MM-DD'));
-    }
     try {
+      // 如果有多个文件，只处理第一个；未来可扩展为处理所有文件
+      const file = fileList[0].originFileObj;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', calculationType);
+      formData.append('frequency', params.frequency);
+      if (params.startDate) {
+        formData.append('start_date', params.startDate.format('YYYY-MM-DD'));
+      }
+      
       const response = await axios.post('/api/calculate', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -44,6 +47,9 @@ function App() {
       setResult(response.data);
       console.log('计算完成，结果:', response.data);
       console.log('sheets_data:', response.data.sheets_data);
+      if (response.data.sheets_data) {
+        console.log('sheets_data详情:', Object.entries(response.data.sheets_data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.length : 0} items`));
+      }
       message.success('计算完成！');
     } catch (error) {
       message.error('计算失败：' + (error.response?.data?.error || error.message));
@@ -158,13 +164,13 @@ function App() {
               {/* 上传文件 */}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                  上传净值列表文件（.xlsx/.xls/.csv/.txt）：
+                  上传净值列表文件（.xlsx/.xls/.csv/.txt，支持多文件）：
                 </label>
                 <Upload
                   fileList={fileList}
                   onChange={handleUpload}
                   beforeUpload={() => false}
-                  maxCount={1}
+                  multiple
                   accept=".txt,.csv,.xlsx,.xls"
                 >
                   <Button icon={<UploadOutlined />}>选择文件</Button>
@@ -288,27 +294,32 @@ function App() {
                         label: sheetName,
                         children: (
                           <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                            {sheetData && sheetData.length > 0 ? (
+                            {sheetData && Array.isArray(sheetData) && sheetData.length > 0 ? (
                               <Table
-                                dataSource={sheetData}
-                                columns={sheetData[0] ? Object.keys(sheetData[0]).map(key => ({
-                                  title: key,
-                                  dataIndex: key,
-                                  key: key,
-                                  render: (text) => {
-                                    // 格式化数字，四位小数
-                                    if (typeof text === 'number') {
-                                      return text.toFixed(4);
+                                dataSource={sheetData.map((row, idx) => ({ ...row, _key: idx }))}
+                                columns={sheetData[0] ? Object.keys(sheetData[0])
+                                  .filter(key => key !== '_key')
+                                  .map(key => ({
+                                    title: key,
+                                    dataIndex: key,
+                                    key: key,
+                                    render: (text) => {
+                                      // 格式化数字，四位小数
+                                      if (typeof text === 'number') {
+                                        return text.toFixed(4);
+                                      }
+                                      return text === null ? '-' : text;
                                     }
-                                    return text;
-                                  }
-                                })) : []}
+                                  })) : []}
                                 pagination={{ pageSize: 20 }}
                                 scroll={{ x: 'max-content' }}
                                 size="small"
+                                rowKey="_key"
                               />
                             ) : (
-                              <p>无数据</p>
+                              <p style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+                                {sheetData === undefined ? '数据未加载' : sheetData === null ? '数据为空' : sheetData.length === 0 ? '无数据' : '数据加载出错'}
+                              </p>
                             )}
                           </div>
                         )
