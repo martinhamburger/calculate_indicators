@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import process_single_file
 from utils.buy_avg_calculator import BuyAvgReturnCalculator
 from utils.periodic_buy_calculator import PeriodicBuyCalculator
+from utils.product_calculator import ProductNetValueCalculator
 from utils.buy_rules import EveryFridayRule, MonthlyDayRule
 
 app = Flask(__name__)
@@ -141,41 +142,33 @@ def calculate():
 
 def calculate_buy_avg(filepath, frequency):
     """计算买入平均收益"""
-    # 初始化时需要传递文件路径
     try:
         calculator = BuyAvgReturnCalculator(filepath) # type: ignore
         
-        # 调用计算方法
-        result_dict = calculator.calculate_all() # type: ignore
+        # 调用计算方法 - 使用 run_all() 返回结果字典
+        result_dict = calculator.run_all() # type: ignore
         
-        # 生成输出
-        output_lines = []
-        output_lines.append("=" * 80)
-        output_lines.append("买入平均收益计算结果")
-        output_lines.append("=" * 80)
+        # 获取产品信息
+        product_info = calculator.get_product_info()
         
-        # 添加产品信息
-        output_lines.append(f"\n产品名称: {result_dict.get('product_name', '未知')}")
-        output_lines.append(f"产品代码: {result_dict.get('product_code', '未知')}")
+        # 生成输出文本
+        output_text = calculator.generate_output_text()
         
-        # 添加结果
-        output_lines.append("\n计算结果：")
-        for key, value in result_dict.items():
-            if key not in ['product_name', 'product_code', 'open_day_df']:
-                output_lines.append(f"{key}: {value}")
-        
-        output_text = "\n".join(output_lines)
-        
-        # 生成表格数据（如果有open_day_df）
+        # 生成表格数据（买入开放日的平均收益）
         table_data = []
-        if 'open_day_df' in result_dict and isinstance(result_dict['open_day_df'], pd.DataFrame):
-            table_data = result_dict['open_day_df'].reset_index().to_dict('records')
+        if hasattr(calculator, 'open_day_df') and isinstance(calculator.open_day_df, pd.DataFrame):
+            # 转换为可显示的格式
+            df_display = calculator.open_day_df.copy()
+            # 如果有收益率列，格式化为百分比
+            if '平均收益' in df_display.columns:
+                df_display['平均收益'] = df_display['平均收益'].apply(lambda x: f"{x:.2%}")
+            table_data = df_display.reset_index().to_dict('records')
         
         return {
             'success': True,
             'output': output_text,
             'table_data': table_data,
-            'summary': f"计算完成：{result_dict.get('product_name', '产品')} 的买入平均收益",
+            'summary': f"计算完成：{product_info.get('name', '产品')} 的买入平均收益",
             'filename': f'买入平均收益_{frequency}.txt'
         }
     except Exception as e:
@@ -193,42 +186,30 @@ def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
         else:
             buy_rule = EveryFridayRule()
         
-        # 初始化时需要传递文件路径和买入规则
+        # 初始化计算器
         calculator = PeriodicBuyCalculator(filepath, buy_rule) # type: ignore
         
-        # 调用计算方法
-        result_dict = calculator.calculate_all(amount_per_purchase=amount) # type: ignore
+        # 调用计算方法 - 使用 calculate_buy_returns() 返回结果
+        results_df = calculator.calculate_buy_returns()
         
-        # 生成输出
-        output_lines = []
-        output_lines.append("=" * 80)
-        output_lines.append("定期买入收益计算结果")
-        output_lines.append("=" * 80)
+        # 获取产品信息
+        product_info = calculator.get_product_info()
         
-        # 添加产品信息
-        output_lines.append(f"\n产品名称: {result_dict.get('product_name', '未知')}")
-        output_lines.append(f"产品代码: {result_dict.get('product_code', '未知')}")
-        output_lines.append(f"买入规则: {frequency}")
-        output_lines.append(f"每期投资金额: ¥{amount:,.2f}")
+        # 生成格式化输出文本
+        output_text = calculator.format_output_text(preview_count=20)
         
-        # 添加计算结果
-        output_lines.append("\n计算结果：")
-        for key, value in result_dict.items():
-            if key not in ['product_name', 'product_code', 'results_df'] and not isinstance(value, pd.DataFrame):
-                output_lines.append(f"{key}: {value}")
+        # 生成完整表格数据
+        table_data = results_df.reset_index().to_dict('records') if isinstance(results_df, pd.DataFrame) else []
         
-        output_text = "\n".join(output_lines)
-        
-        # 生成表格数据
-        table_data = []
-        if 'results_df' in result_dict and isinstance(result_dict['results_df'], pd.DataFrame):
-            table_data = result_dict['results_df'].reset_index().to_dict('records')
+        # 计算汇总信息
+        total_purchases = len(results_df) if isinstance(results_df, pd.DataFrame) else 0
+        avg_return = results_df['区间收益率'].mean() if isinstance(results_df, pd.DataFrame) and '区间收益率' in results_df.columns else 0
         
         return {
             'success': True,
             'output': output_text,
             'table_data': table_data,
-            'summary': f"定期买入计算完成: 总投资 {result_dict.get('总投资次数', 0)} 次",
+            'summary': f"定期买入计算完成: 共 {total_purchases} 次买入，平均收益率 {avg_return:.2%}",
             'filename': f'定期买入_{frequency}.txt'
         }
     except Exception as e:
@@ -239,36 +220,46 @@ def calculate_normal(filepath, frequency):
     """常规计算 - 产品净值和业绩指标"""
     try:
         # 使用 ProductNetValueCalculator
-        from utils.product_calculator import ProductNetValueCalculator
-        
         calculator = ProductNetValueCalculator(filepath)
         
-        # 执行计算
-        result = calculator.calculate() # type: ignore
+        # 执行计算 - 使用 run_all_calculations()
+        calculator.run_all_calculations()
         
-        # 生成输出
+        # 获取产品信息
+        product_info = calculator.get_product_info()
+        
+        # 构建业绩指标数据框
+        metrics_df = calculator.build_metrics_df()
+        
+        # 生成输出文本
         output_lines = []
         output_lines.append("=" * 80)
         output_lines.append("产品净值计算结果")
         output_lines.append("=" * 80)
-        output_lines.append(f"\n产品名称: {result.get('product_name', '未知')}")
-        output_lines.append(f"产品代码: {result.get('product_code', '未知')}")
-        output_lines.append(f"最新净值日期: {result.get('latest_nav_date', '未知')}")
-        output_lines.append(f"最新净值: {result.get('latest_nav', '未知')}")
+        output_lines.append(f"\n产品名称: {product_info.get('name', '未知')}")
+        output_lines.append(f"产品代码: {product_info.get('code', '未知')}")
+        output_lines.append(f"数据范围: {product_info.get('date_range', '未知')}")
         
         output_lines.append("\n业绩指标：")
-        output_lines.append(f"成立以来收益率: {result.get('total_return_rate', '未知')}")
-        output_lines.append(f"年化收益率: {result.get('annual_return_rate', '未知')}")
-        output_lines.append(f"年化波动率: {result.get('annual_volatility', '未知')}")
-        output_lines.append(f"夏普比率: {result.get('sharpe_ratio', '未知')}")
-        output_lines.append(f"最大回撤: {result.get('max_drawdown', '未知')}")
+        if isinstance(metrics_df, pd.DataFrame) and not metrics_df.empty:
+            # 将指标数据写入输出
+            for _, row in metrics_df.iterrows():
+                for col in metrics_df.columns:
+                    value = row[col]
+                    output_lines.append(f"{col}: {value}")
         
         output_text = "\n".join(output_lines)
+        
+        # 生成表格数据
+        table_data = []
+        if isinstance(metrics_df, pd.DataFrame):
+            table_data = metrics_df.reset_index().to_dict('records')
         
         return {
             'success': True,
             'output': output_text,
-            'summary': '常规净值计算完成',
+            'table_data': table_data,
+            'summary': f"净值计算完成：{product_info.get('name', '产品')}",
             'filename': f'净值计算_{frequency}.txt'
         }
     except Exception as e:
