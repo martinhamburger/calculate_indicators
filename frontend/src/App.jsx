@@ -132,11 +132,11 @@ function App() {
                 </Select>
               </div>
 
-              {/* 频率选择 */}
-              {(calculationType === 'buy_avg' || calculationType === 'calculate') && (
+              {/* 频率选择 - 仅在定期买入时显示 */}
+              {calculationType === 'periodic_buy' && (
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                    频率：
+                    买入频率：
                   </label>
                   <Select
                     value={params.frequency}
@@ -144,8 +144,7 @@ function App() {
                     style={{ width: 300 }}
                   >
                     <Option value="friday">每周五</Option>
-                    <Option value="monthly">每月</Option>
-                    <Option value="daily">每日</Option>
+                    <Option value="monthly">每月20日</Option>
                   </Select>
                 </div>
               )}
