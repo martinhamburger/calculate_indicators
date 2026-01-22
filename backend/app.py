@@ -107,7 +107,6 @@ def calculate():
         frequency = request.form.get('frequency', 'friday')
         start_date = request.form.get('start_date')
         end_date = request.form.get('end_date')
-        amount = float(request.form.get('amount', 10000))
         
         # 保存临时文件
         filename = secure_filename(file.filename) # type: ignore
@@ -119,7 +118,7 @@ def calculate():
         if calc_type == 'buy_avg':
             result = calculate_buy_avg(filepath, frequency)
         elif calc_type == 'periodic_buy':
-            result = calculate_periodic_buy(filepath, frequency, start_date, end_date, amount)
+            result = calculate_periodic_buy(filepath, frequency, start_date, end_date)
         elif calc_type == 'calculate':
             result = calculate_normal(filepath, frequency)
         else:
@@ -177,7 +176,7 @@ def calculate_buy_avg(filepath, frequency):
         raise Exception(f"买入平均收益计算失败: {str(e)}")
 
 
-def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
+def calculate_periodic_buy(filepath, frequency, start_date, end_date):
     """计算定期买入收益 - 根据指定频率的买入规则计算收益"""
     try:
         # 根据频率参数选择买入规则

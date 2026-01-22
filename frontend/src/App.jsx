@@ -15,8 +15,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [params, setParams] = useState({
     frequency: 'friday',
-    dateRange: null,
-    amount: 10000
+    dateRange: null
   });
 
   const handleUpload = ({ fileList: newFileList }) => {
@@ -38,14 +37,11 @@ function App() {
       formData.append('start_date', params.dateRange[0].format('YYYY-MM-DD'));
       formData.append('end_date', params.dateRange[1].format('YYYY-MM-DD'));
     }
-    formData.append('amount', params.amount);
-
-    try {
-      const response = await axios.post('/api/calculate', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+    const response = await axios.post('/api/calculate', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
       setResult(response.data);
       message.success('计算完成！');
     } catch (error) {
@@ -158,23 +154,6 @@ function App() {
                   <RangePicker
                     onChange={(dates) => setParams({ ...params, dateRange: dates })}
                     style={{ width: 300 }}
-                  />
-                </div>
-              )}
-
-              {/* 金额 */}
-              {calculationType === 'periodic_buy' && (
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                    每期投资金额：
-                  </label>
-                  <InputNumber
-                    value={params.amount}
-                    onChange={(val) => setParams({ ...params, amount: val })}
-                    style={{ width: 300 }}
-                    min={0}
-                    step={1000}
-                    formatter={value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                   />
                 </div>
               )}
