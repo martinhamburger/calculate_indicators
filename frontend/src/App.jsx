@@ -11,7 +11,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [calculationType, setCalculationType] = useState('buy_avg');
   const [fileList, setFileList] = useState([]);
-  const [result, setResult] = useState(null);
+  const [results, setResults] = useState([]);  // 改为支持多个结果
   const [params, setParams] = useState({
     frequency: 'friday',
     startDate: null
@@ -28,29 +28,50 @@ function App() {
     }
 
     setLoading(true);
+    const allResults = [];
+    
     try {
-      // 如果有多个文件，只处理第一个；未来可扩展为处理所有文件
-      const file = fileList[0].originFileObj;
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', calculationType);
-      formData.append('frequency', params.frequency);
-      if (params.startDate) {
-        formData.append('start_date', params.startDate.format('YYYY-MM-DD'));
+      // 逐个处理每个文件
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i].originFileObj;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', calculationType);
+        formData.append('frequency', params.frequency);
+        if (params.startDate) {
+          formData.append('start_date', params.startDate.format('YYYY-MM-DD'));
+        }
+        
+        message.loading({
+          content: `正在计算 ${file.name} (${i + 1}/${fileList.length})...`,
+          key: 'calc',
+        });
+        
+        const response = await axios.post('/api/calculate', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        // 为每个结果添加文件名标识
+        const resultWithFileName = {
+          ...response.data,
+          _fileName: file.name,
+          _fileIndex: i
+        };
+        allResults.push(resultWithFileName);
+        
+        console.log(`${file.name} 计算完成，结果:`, response.data);
+        if (response.data.sheets_data) {
+          console.log(`${file.name} sheets_data:`, Object.entries(response.data.sheets_data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.length : 0} items`));
+        }
       }
       
-      const response = await axios.post('/api/calculate', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      setResults(allResults);
+      message.success({
+        content: `${allResults.length} 个文件计算完成！`,
+        key: 'calc',
       });
-      setResult(response.data);
-      console.log('计算完成，结果:', response.data);
-      console.log('sheets_data:', response.data.sheets_data);
-      if (response.data.sheets_data) {
-        console.log('sheets_data详情:', Object.entries(response.data.sheets_data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.length : 0} items`));
-      }
-      message.success('计算完成！');
     } catch (error) {
       message.error('计算失败：' + (error.response?.data?.error || error.message));
     } finally {
@@ -58,28 +79,35 @@ function App() {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = (result) => {
     if (!result) return;
     
     const blob = new Blob([result.output], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = result.filename || 'result.txt';
+    a.download = result.filename || `结果_${result._fileName || 'result'}.txt`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
 
-  const handleDownloadExcel = async () => {
+  const handleDownloadExcel = async (resultIndex) => {
     if (!fileList || fileList.length === 0) {
       message.warning('请先上传文件');
+      return;
+    }
+    
+    // 使用对应的文件
+    const file = fileList[resultIndex]?.originFileObj || fileList[0]?.originFileObj;
+    if (!file) {
+      message.warning('文件不存在');
       return;
     }
     
     try {
       setLoading(true);
       const formData = new FormData();
-      formData.append('file', fileList[0].originFileObj);
+      formData.append('file', file);
       formData.append('frequency', params.frequency);
       
       const response = await axios.post('/api/download-excel', formData, {
@@ -114,7 +142,7 @@ function App() {
     }
   };
 
-  const handleDownloadSummary = () => {
+  const handleDownloadSummary = (result) => {
     if (!result) return;
     
     // 下载汇总信息
@@ -123,7 +151,7 @@ function App() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `汇总_${result.product_name || 'result'}.txt`;
+    a.download = `汇总_${result.product_name || result._fileName || 'result'}.txt`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -248,127 +276,133 @@ function App() {
             </Card>
           )}
 
-          {result && !loading && (
-            <Card 
-              title="计算结果" 
-              style={{ marginTop: '24px' }}
-              extra={
-                <Space>
-                  {result.sheets_data && (
-                    <>
-                      <Button 
-                        type="primary" 
-                        icon={<FileExcelOutlined />}
-                        onClick={handleDownloadExcel}
-                      >
-                        下载为Excel
-                      </Button>
-                      <Button 
-                        icon={<FileTextOutlined />}
-                        onClick={handleDownloadSummary}
-                      >
-                        下载汇总表
-                      </Button>
-                    </>
-                  )}
-                  <Button 
-                    type="primary" 
-                    icon={<DownloadOutlined />}
-                    onClick={handleDownload}
-                  >
-                    下载结果
-                  </Button>
-                </Space>
-              }
-            >
-              {/* 常规计算：多Sheet展示 */}
-              {result.sheets_data && (
-                <>
-                  <Tabs
-                    defaultActiveKey="0"
-                    style={{ marginBottom: '24px' }}
-                    items={Object.entries(result.sheets_data).map((item, index) => {
-                      const [sheetName, sheetData] = item;
-                      return {
-                        key: index.toString(),
-                        label: sheetName,
-                        children: (
-                          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                            {sheetData && Array.isArray(sheetData) && sheetData.length > 0 ? (
-                              <Table
-                                dataSource={sheetData.map((row, idx) => ({ ...row, _key: idx }))}
-                                columns={sheetData[0] ? Object.keys(sheetData[0])
-                                  .filter(key => key !== '_key')
-                                  .map(key => ({
-                                    title: key,
-                                    dataIndex: key,
-                                    key: key,
-                                    render: (text) => {
-                                      // 格式化数字，四位小数
-                                      if (typeof text === 'number') {
-                                        return text.toFixed(4);
-                                      }
-                                      return text === null ? '-' : text;
-                                    }
-                                  })) : []}
-                                pagination={{ pageSize: 20 }}
-                                scroll={{ x: 'max-content' }}
-                                size="small"
-                                rowKey="_key"
-                              />
-                            ) : (
-                              <p style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
-                                {sheetData === undefined ? '数据未加载' : sheetData === null ? '数据为空' : sheetData.length === 0 ? '无数据' : '数据加载出错'}
-                              </p>
-                            )}
-                          </div>
-                        )
-                      };
-                    })}
-                  />
-                  <Divider />
-                </>
-              )}
+          {results && results.length > 0 && !loading && (
+            <Card title="计算结果" style={{ marginTop: '24px' }}>
+              <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                {results.map((result, resultIndex) => (
+                  <div key={resultIndex} style={{ borderTop: '1px solid #f0f0f0', paddingTop: '20px' }}>
+                    <div style={{ marginBottom: '16px' }}>
+                      <h2 style={{ margin: '0 0 16px 0', color: '#1890ff' }}>
+                        文件 {resultIndex + 1}: {result._fileName}
+                      </h2>
+                      <Space>
+                        {result.sheets_data && (
+                          <>
+                            <Button 
+                              type="primary" 
+                              icon={<FileExcelOutlined />}
+                              onClick={() => handleDownloadExcel(resultIndex)}
+                            >
+                              下载为Excel
+                            </Button>
+                            <Button 
+                              icon={<FileTextOutlined />}
+                              onClick={() => handleDownloadSummary(result)}
+                            >
+                              下载汇总表
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          icon={<DownloadOutlined />}
+                          onClick={() => handleDownload(result)}
+                        >
+                          下载结果
+                        </Button>
+                      </Space>
+                    </div>
 
-              {result.summary && (
-                <>
-                  <div style={{ marginBottom: '20px' }}>
-                    <h3>汇总信息：</h3>
-                    <pre style={{ background: '#f5f5f5', padding: '16px', borderRadius: '4px' }}>
-                      {result.summary}
-                    </pre>
+                    {/* 常规计算：多Sheet展示 */}
+                    {result.sheets_data && (
+                      <>
+                        <Tabs
+                          defaultActiveKey="0"
+                          style={{ marginBottom: '24px' }}
+                          items={Object.entries(result.sheets_data).map((item, index) => {
+                            const [sheetName, sheetData] = item;
+                            return {
+                              key: index.toString(),
+                              label: sheetName,
+                              children: (
+                                <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                                  {sheetData && Array.isArray(sheetData) && sheetData.length > 0 ? (
+                                    <Table
+                                      dataSource={sheetData.map((row, idx) => ({ ...row, _key: `${resultIndex}-${idx}` }))}
+                                      columns={sheetData[0] ? Object.keys(sheetData[0])
+                                        .filter(key => key !== '_key')
+                                        .map(key => ({
+                                          title: key,
+                                          dataIndex: key,
+                                          key: key,
+                                          render: (text) => {
+                                            // 格式化数字，四位小数
+                                            if (typeof text === 'number') {
+                                              return text.toFixed(4);
+                                            }
+                                            return text === null ? '-' : text;
+                                          }
+                                        })) : []}
+                                      pagination={{ pageSize: 20 }}
+                                      scroll={{ x: 'max-content' }}
+                                      size="small"
+                                      rowKey="_key"
+                                    />
+                                  ) : (
+                                    <p style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+                                      {sheetData === undefined ? '数据未加载' : sheetData === null ? '数据为空' : sheetData && sheetData.length === 0 ? '无数据' : '数据加载出错'}
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            };
+                          })}
+                        />
+                        <Divider />
+                      </>
+                    )}
+
+                    {result.summary && (
+                      <>
+                        <div style={{ marginBottom: '20px' }}>
+                          <h3>汇总信息：</h3>
+                          <pre style={{ background: '#f5f5f5', padding: '16px', borderRadius: '4px' }}>
+                            {result.summary}
+                          </pre>
+                        </div>
+                        <Divider />
+                      </>
+                    )}
+
+                    {result.table_data && result.table_data.length > 0 && (
+                      <div>
+                        <h3 style={{ marginBottom: '16px' }}>数据表格：</h3>
+                        <Table
+                          dataSource={result.table_data}
+                          columns={columns}
+                          pagination={{ pageSize: 10 }}
+                          scroll={{ x: 'max-content' }}
+                          size="small"
+                        />
+                      </div>
+                    )}
+
+                    {result.output && !result.table_data && (
+                      <div>
+                        <h3>详细输出：</h3>
+                        <pre style={{ 
+                          background: '#f5f5f5', 
+                          padding: '16px', 
+                          borderRadius: '4px',
+                          maxHeight: '400px',
+                          overflow: 'auto'
+                        }}>
+                          {result.output}
+                        </pre>
+                      </div>
+                    )}
                   </div>
-                  <Divider />
-                </>
-              )}
-
-              {result.table_data && result.table_data.length > 0 && (
-                <div>
-                  <h3 style={{ marginBottom: '16px' }}>数据表格：</h3>
-                  <Table
-                    dataSource={result.table_data}
-                    columns={columns}
-                    pagination={{ pageSize: 10 }}
-                    scroll={{ x: 'max-content' }}
-                    size="small"
-                  />
-                </div>
-              )}
-
-              {result.output && !result.table_data && (
-                <div>
-                  <h3>详细输出：</h3>
-                  <pre style={{ 
-                    background: '#f5f5f5', 
-                    padding: '16px', 
-                    borderRadius: '4px',
-                    maxHeight: '400px',
-                    overflow: 'auto'
-                  }}>
-                    {result.output}
-                  </pre>
-                </div>
-              )}
+                ))}
+              </Space>
             </Card>
           )}
         </div>

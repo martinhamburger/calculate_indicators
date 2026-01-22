@@ -297,48 +297,76 @@ def calculate_normal(filepath, frequency):
         output_text = "\n".join(output_lines)
         
         # 生成多个sheet的数据，确保可序列化
-        def df_to_records(df):
+        def df_to_records(df, sheet_name=""):
             """将DataFrame安全地转换为可序列化的记录列表"""
-            if df is None or not isinstance(df, pd.DataFrame):
+            if df is None:
+                print(f"警告: {sheet_name} 为None")
                 return []
+            if not isinstance(df, pd.DataFrame):
+                print(f"警告: {sheet_name} 不是DataFrame，类型为{type(df)}")
+                return []
+            if df.empty:
+                print(f"警告: {sheet_name} 为空DataFrame")
+                return []
+            
             try:
                 # 重置索引，确保索引变成列
                 df_reset = df.reset_index()
+                print(f"DEBUG {sheet_name}: 重置索引后有 {len(df_reset)} 行，列为 {list(df_reset.columns)}")
+                
                 # 将所有值转换为Python原生类型，处理NaN和日期
                 records = []
-                for _, row in df_reset.iterrows():
+                for idx, row in df_reset.iterrows():
                     record = {}
                     for col, val in row.items():
+                        col_name = str(col)
                         # 处理NaN
                         if pd.isna(val):
-                            record[col] = None
+                            record[col_name] = None
                         # 处理日期时间
                         elif isinstance(val, (pd.Timestamp, pd.datetime64)): # type: ignore
-                            record[col] = str(val.date()) if hasattr(val, 'date') else str(val)
+                            try:
+                                record[col_name] = str(val.date()) if hasattr(val, 'date') else str(val)
+                            except:
+                                record[col_name] = str(val)
                         # 处理numpy类型
                         elif isinstance(val, (np.integer, np.floating)):
-                            record[col] = float(val) if isinstance(val, np.floating) else int(val)
+                            record[col_name] = float(val) if isinstance(val, np.floating) else int(val)
+                        # 处理其他numpy类型
+                        elif isinstance(val, np.ndarray):
+                            record[col_name] = val.tolist()
                         else:
-                            record[col] = val
+                            record[col_name] = val
                     records.append(record)
+                
+                print(f"DEBUG {sheet_name}: 转换成功，共 {len(records)} 条记录")
                 return records
             except Exception as e:
-                print(f"转换DataFrame失败: {str(e)}")
+                print(f"ERROR {sheet_name}: 转换DataFrame失败: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 return []
         
         # 生成多个sheet的数据
         sheets_data = {
-            '业绩指标计算': df_to_records(metrics_df),
-            '年度收益率': df_to_records(annual_returns_df),
-            '周频计算历史最大回撤': df_to_records(weekly_dd),
-            '月频计算历史最大回撤': df_to_records(monthly_dd),
-            '成立以来月度收益': df_to_records(monthly_matrix)
+            '业绩指标计算': df_to_records(metrics_df, '业绩指标计算'),
+            '年度收益率': df_to_records(annual_returns_df, '年度收益率'),
+            '周频计算历史最大回撤': df_to_records(weekly_dd, '周频计算历史最大回撤'),
+            '月频计算历史最大回撤': df_to_records(monthly_dd, '月频计算历史最大回撤'),
+            '成立以来月度收益': df_to_records(monthly_matrix, '成立以来月度收益')
         }
         
         # 调试日志
+        print(f"\n=== sheets_data summary ===")
         print(f"sheets_data keys: {sheets_data.keys()}")
         for key, data in sheets_data.items():
-            print(f"{key}: {len(data) if isinstance(data, list) else 'not a list'} records")
+            if isinstance(data, list):
+                print(f"{key}: {len(data)} records")
+                if data:
+                    print(f"  First record columns: {list(data[0].keys())}")
+            else:
+                print(f"{key}: INVALID TYPE {type(data)}")
+        print(f"============================\n")
         
         return {
             'success': True,
