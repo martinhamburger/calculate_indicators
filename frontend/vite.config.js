@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/main/',  // GitHub Pages 仓库名，根据实际情况修改
+  base: '/calculate_indicators/',  // GitHub Pages 仓库名，根据实际情况修改
   server: {
     port: 3000,
     proxy: {
