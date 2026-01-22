@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
+import glob
 import tempfile
 import pandas as pd
 import numpy as np
@@ -148,7 +149,9 @@ def calculate_buy_avg(filepath, frequency):
         calculator = BuyAvgReturnCalculator(filepath) # type: ignore
         
         # 调用计算方法
-        result_dict = calculator.run_all() # type: ignore
+        calculator.get_open_day_data() # type: ignore
+        calculator.calculate_returns_since_open_day() # type: ignore
+        result_dict = calculator.results # type: ignore
         
         # 获取产品信息
         product_info = calculator.get_product_info()
@@ -255,11 +258,13 @@ def calculate_normal(filepath, frequency):
         calculator.run_all_calculations()
         
         # 获取产品信息 - 返回元组 (product_name, latest_nav_date, latest_nav)
-        product_info = calculator.get_product_info()
-        if product_info:
-            product_name, latest_nav_date, latest_nav = product_info
-        else:
-            product_name, latest_nav_date, latest_nav = '未知', '未知', '未知'
+        product_name, latest_nav_date, latest_nav = calculator.get_product_info()
+        if not product_name:
+            product_name = '未知'
+        if not latest_nav_date:
+            latest_nav_date = '未知'
+        if not latest_nav:
+            latest_nav = '未知'
         
         # 构建所有数据表
         metrics_df = calculator.build_metrics_df()
@@ -311,7 +316,7 @@ def calculate_normal(filepath, frequency):
             
             try:
                 # 重置索引，确保索引变成列
-                df_reset = df.reset_index()
+                df_reset = df.reset_index(drop=True) if df.index.name or any(df.index != range(len(df))) else df.copy()
                 print(f"DEBUG {sheet_name}: 重置索引后有 {len(df_reset)} 行，列为 {list(df_reset.columns)}")
                 
                 # 将所有值转换为Python原生类型，处理NaN和日期
@@ -371,7 +376,7 @@ def calculate_normal(filepath, frequency):
         return {
             'success': True,
             'output': output_text,
-            'table_data': metrics_df.reset_index().to_dict('records') if isinstance(metrics_df, pd.DataFrame) else [],
+            'table_data': metrics_df.to_dict('records') if isinstance(metrics_df, pd.DataFrame) and not metrics_df.empty else [],
             'sheets_data': sheets_data,
             'product_name': product_name,
             'summary': f"净值计算完成：{product_name}",
@@ -401,15 +406,16 @@ def download_excel():
         file.save(filepath)
         
         try:
-            # 获取原始数据
-            data = process_single_file(filepath)
-            if data is None or data.empty:
-                return jsonify({'error': '文件为空或格式错误'}), 400
-            
             # 执行常规计算
-            product_name = data.columns[0] if not data.columns.empty else '产品'
             calculator = ProductNetValueCalculator(filepath)
             calculator.run_all_calculations()
+            
+            # 获取产品信息
+            product_info = calculator.get_product_info()
+            if product_info:
+                product_name, latest_nav_date, latest_nav = product_info
+            else:
+                product_name = '产品'
             
             # 保存到临时Excel文件
             output_file = os.path.join(temp_dir, 'output.xlsx')

@@ -164,12 +164,6 @@ function App() {
     }
   ];
 
-  const columns = result?.table_data ? Object.keys(result.table_data[0] || {}).map(key => ({
-    title: key,
-    dataIndex: key,
-    key: key,
-  })) : [];
-
   return (
     <Layout className="layout">
       <Header style={{ display: 'flex', alignItems: 'center', background: '#001529' }}>
@@ -378,7 +372,13 @@ function App() {
                         <h3 style={{ marginBottom: '16px' }}>数据表格：</h3>
                         <Table
                           dataSource={result.table_data}
-                          columns={columns}
+                          columns={result.table_data[0] ? Object.keys(result.table_data[0])
+                            .filter(key => key !== '_key')
+                            .map(key => ({
+                              title: key,
+                              dataIndex: key,
+                              key: key,
+                            })) : []}
                           pagination={{ pageSize: 10 }}
                           scroll={{ x: 'max-content' }}
                           size="small"
