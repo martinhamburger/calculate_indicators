@@ -141,165 +141,129 @@ def calculate():
 
 def calculate_buy_avg(filepath, frequency):
     """计算买入平均收益"""
-    calculator = BuyAvgReturnCalculator() # type: ignore
-    
-    # 加载数据
+    # 初始化时需要传递文件路径
     try:
-        if filepath.endswith(('.xlsx', '.xls')):
-            # 尝试使用 load_data 方法
-            calculator.load_data(filepath) # type: ignore
-        else:
-            # 处理 txt/csv 文件 - 尝试多种分隔符
-            try:
-                # 首先尝试 tab 分隔
-                df = pd.read_csv(filepath, sep='\t', encoding='utf-8')
-            except Exception:
-                try:
-                    # 如果失败，尝试逗号分隔
-                    df = pd.read_csv(filepath, sep=',', encoding='utf-8')
-                except Exception:
-                    # 最后尝试自动检测分隔符
-                    df = pd.read_csv(filepath, encoding='utf-8')
-            
-            calculator.df = df
+        calculator = BuyAvgReturnCalculator(filepath) # type: ignore
+        
+        # 调用计算方法
+        result_dict = calculator.calculate_all() # type: ignore
+        
+        # 生成输出
+        output_lines = []
+        output_lines.append("=" * 80)
+        output_lines.append("买入平均收益计算结果")
+        output_lines.append("=" * 80)
+        
+        # 添加产品信息
+        output_lines.append(f"\n产品名称: {result_dict.get('product_name', '未知')}")
+        output_lines.append(f"产品代码: {result_dict.get('product_code', '未知')}")
+        
+        # 添加结果
+        output_lines.append("\n计算结果：")
+        for key, value in result_dict.items():
+            if key not in ['product_name', 'product_code', 'open_day_df']:
+                output_lines.append(f"{key}: {value}")
+        
+        output_text = "\n".join(output_lines)
+        
+        # 生成表格数据（如果有open_day_df）
+        table_data = []
+        if 'open_day_df' in result_dict and isinstance(result_dict['open_day_df'], pd.DataFrame):
+            table_data = result_dict['open_day_df'].reset_index().to_dict('records')
+        
+        return {
+            'success': True,
+            'output': output_text,
+            'table_data': table_data,
+            'summary': f"计算完成：{result_dict.get('product_name', '产品')} 的买入平均收益",
+            'filename': f'买入平均收益_{frequency}.txt'
+        }
     except Exception as e:
-        raise Exception(f"数据加载失败: {str(e)}。请检查文件格式是否正确。")
-    
-    # 计算
-    try:
-        result_df = calculator.calculate_returns() # type: ignore
-    except Exception as e:
-        raise Exception(f"计算过程出错: {str(e)}。数据可能格式不符合要求。")
-    
-    # 生成输出
-    output_lines = []
-    output_lines.append("=" * 80)
-    output_lines.append("买入平均收益计算结果")
-    output_lines.append("=" * 80)
-    output_lines.append(f"\n数据范围: {result_df['日期'].min()} 至 {result_df['日期'].max()}")
-    output_lines.append(f"总记录数: {len(result_df)}")
-    output_lines.append("\n" + "=" * 80)
-    output_lines.append("\n详细数据:\n")
-    output_lines.append(result_df.to_string(index=False))
-    
-    output_text = "\n".join(output_lines)
-    
-    # 生成表格数据
-    table_data = result_df.to_dict('records')
-    
-    return {
-        'success': True,
-        'output': output_text,
-        'table_data': table_data,
-        'summary': f"共计算 {len(result_df)} 个开放日的买入平均收益",
-        'filename': f'买入平均收益_{frequency}.txt'
-    }
+        raise Exception(f"买入平均收益计算失败: {str(e)}")
 
 
 def calculate_periodic_buy(filepath, frequency, start_date, end_date, amount):
     """计算定期买入收益"""
-    calculator = PeriodicBuyCalculator() # type: ignore
-    
-    # 加载数据
     try:
-        if filepath.endswith(('.xlsx', '.xls')):
-            calculator.load_data(filepath) # type: ignore
+        # 选择买入规则
+        if frequency == 'friday':
+            buy_rule = EveryFridayRule()
+        elif frequency == 'monthly':
+            buy_rule = MonthlyDayRule(day=20)
         else:
-            # 处理 txt/csv 文件 - 尝试多种分隔符
-            try:
-                df = pd.read_csv(filepath, sep='\t', encoding='utf-8')
-            except Exception:
-                try:
-                    df = pd.read_csv(filepath, sep=',', encoding='utf-8')
-                except Exception:
-                    df = pd.read_csv(filepath, encoding='utf-8')
-            
-            calculator.df = df
-            
-            # 处理日期列（兼容多种列名）
-            date_columns = ['净值日期', '日期', 'Date', 'date', '时间', '日期时间']
-            date_col = None
-            for col in date_columns:
-                if col in calculator.df.columns:
-                    date_col = col
-                    break
-            
-            if date_col:
-                calculator.df[date_col] = pd.to_datetime(calculator.df[date_col])
+            buy_rule = EveryFridayRule()
+        
+        # 初始化时需要传递文件路径和买入规则
+        calculator = PeriodicBuyCalculator(filepath, buy_rule) # type: ignore
+        
+        # 调用计算方法
+        result_dict = calculator.calculate_all(amount_per_purchase=amount) # type: ignore
+        
+        # 生成输出
+        output_lines = []
+        output_lines.append("=" * 80)
+        output_lines.append("定期买入收益计算结果")
+        output_lines.append("=" * 80)
+        
+        # 添加产品信息
+        output_lines.append(f"\n产品名称: {result_dict.get('product_name', '未知')}")
+        output_lines.append(f"产品代码: {result_dict.get('product_code', '未知')}")
+        output_lines.append(f"买入规则: {frequency}")
+        output_lines.append(f"每期投资金额: ¥{amount:,.2f}")
+        
+        # 添加计算结果
+        output_lines.append("\n计算结果：")
+        for key, value in result_dict.items():
+            if key not in ['product_name', 'product_code', 'results_df'] and not isinstance(value, pd.DataFrame):
+                output_lines.append(f"{key}: {value}")
+        
+        output_text = "\n".join(output_lines)
+        
+        # 生成表格数据
+        table_data = []
+        if 'results_df' in result_dict and isinstance(result_dict['results_df'], pd.DataFrame):
+            table_data = result_dict['results_df'].reset_index().to_dict('records')
+        
+        return {
+            'success': True,
+            'output': output_text,
+            'table_data': table_data,
+            'summary': f"定期买入计算完成: 总投资 {result_dict.get('总投资次数', 0)} 次",
+            'filename': f'定期买入_{frequency}.txt'
+        }
     except Exception as e:
-        raise Exception(f"数据加载失败: {str(e)}。请检查文件格式。")
-    
-    # 选择买入规则
-    if frequency == 'friday':
-        buy_rule = EveryFridayRule()
-    elif frequency == 'monthly':
-        buy_rule = MonthlyDayRule(day=20)
-    else:
-        buy_rule = EveryFridayRule()
-    
-    # 计算
-    try:
-        result = calculator.calculate_returns( # type: ignore
-            buy_rule=buy_rule,
-            amount_per_purchase=amount
-        )
-    except Exception as e:
-        raise Exception(f"计算过程出错: {str(e)}。数据可能格式不符合要求。")
-    
-    # 生成输出
-    output_lines = []
-    output_lines.append("=" * 80)
-    output_lines.append("定期买入收益计算结果")
-    output_lines.append("=" * 80)
-    output_lines.append(f"\n买入规则: {buy_rule.__class__.__name__}")
-    output_lines.append(f"每期投资金额: ¥{amount:,.2f}")
-    output_lines.append(f"\n买入次数: {result['purchase_count']}")
-    output_lines.append(f"累计投资: ¥{result['total_invested']:,.2f}")
-    output_lines.append(f"当前市值: ¥{result['current_value']:,.2f}")
-    output_lines.append(f"累计收益: ¥{result['total_return']:,.2f}")
-    output_lines.append(f"收益率: {result['return_rate']:.2%}")
-    output_lines.append("\n" + "=" * 80)
-    output_lines.append("\n买入明细:\n")
-    
-    # 转换买入记录为DataFrame
-    purchases_df = pd.DataFrame(result['purchases'])
-    output_lines.append(purchases_df.to_string(index=False))
-    
-    output_text = "\n".join(output_lines)
-    
-    # 生成汇总信息
-    summary = f"共买入 {result['purchase_count']} 次，累计投资 ¥{result['total_invested']:,.2f}，" \
-              f"当前市值 ¥{result['current_value']:,.2f}，收益率 {result['return_rate']:.2%}"
-    
-    return {
-        'success': True,
-        'output': output_text,
-        'table_data': result['purchases'],
-        'summary': summary,
-        'filename': f'定期买入_{frequency}.txt'
-    }
+        raise Exception(f"定期买入计算失败: {str(e)}")
 
 
 def calculate_normal(filepath, frequency):
-    """常规计算"""
-    # 创建临时输出目录
-    temp_output_dir = tempfile.mkdtemp()
-    
+    """常规计算 - 产品净值和业绩指标"""
     try:
-        # 使用现有的处理函数
-        result_file = process_single_file(
-            filepath,
-            output_dir=temp_output_dir,
-            risk_free_rate=0.02
-        )
+        # 使用 ProductNetValueCalculator
+        from utils.product_calculator import ProductNetValueCalculator
         
-        # 读取结果文件
-        with open(result_file, 'r', encoding='utf-8') as f: # type: ignore
-            output_text = f.read()
+        calculator = ProductNetValueCalculator(filepath)
         
-        # 清理
-        os.remove(result_file) # type: ignore
-        os.rmdir(temp_output_dir)
+        # 执行计算
+        result = calculator.calculate() # type: ignore
+        
+        # 生成输出
+        output_lines = []
+        output_lines.append("=" * 80)
+        output_lines.append("产品净值计算结果")
+        output_lines.append("=" * 80)
+        output_lines.append(f"\n产品名称: {result.get('product_name', '未知')}")
+        output_lines.append(f"产品代码: {result.get('product_code', '未知')}")
+        output_lines.append(f"最新净值日期: {result.get('latest_nav_date', '未知')}")
+        output_lines.append(f"最新净值: {result.get('latest_nav', '未知')}")
+        
+        output_lines.append("\n业绩指标：")
+        output_lines.append(f"成立以来收益率: {result.get('total_return_rate', '未知')}")
+        output_lines.append(f"年化收益率: {result.get('annual_return_rate', '未知')}")
+        output_lines.append(f"年化波动率: {result.get('annual_volatility', '未知')}")
+        output_lines.append(f"夏普比率: {result.get('sharpe_ratio', '未知')}")
+        output_lines.append(f"最大回撤: {result.get('max_drawdown', '未知')}")
+        
+        output_text = "\n".join(output_lines)
         
         return {
             'success': True,
@@ -308,12 +272,7 @@ def calculate_normal(filepath, frequency):
             'filename': f'净值计算_{frequency}.txt'
         }
     except Exception as e:
-        # 清理
-        try:
-            os.rmdir(temp_output_dir)
-        except:
-            pass
-        raise e
+        raise Exception(f"常规计算失败: {str(e)}")
 
 
 if __name__ == '__main__':
