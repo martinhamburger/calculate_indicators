@@ -1,0 +1,22 @@
+# Image Tools Dependencies
+# 
+# Install all dependencies with:
+# pip install -r image_tools_requirements.txt
+#
+# After installation, also run:
+# playwright install chromium
+
+# PDF Processing
+PyMuPDF>=1.23.0
+
+# Web Screenshots
+playwright>=1.40.0
+
+# AI Image Generation
+openai>=1.0.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# HTTP Requests
+requests>=2.31.0
