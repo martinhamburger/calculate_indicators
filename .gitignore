@@ -40,3 +40,8 @@ Thumbs.db
 # Project specific
 output/
 *.log
+
+# Image tools test outputs
+screenshots/
+pages/
+images/
