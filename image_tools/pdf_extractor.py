@@ -17,10 +17,6 @@ class PDFExtractor:
     2. 从 PDF 中提取嵌入的图片
     """
     
-    def __init__(self):
-        """初始化 PDF 提取工具"""
-        pass
-    
     def pages_to_images(self, pdf_path, output_folder, 
                        dpi=150, 
                        image_format='png',

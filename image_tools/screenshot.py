@@ -4,6 +4,7 @@
 使用 Playwright 实现网页自动化截图功能。
 """
 
+from typing import Optional, List
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 from pathlib import Path
 import time
@@ -16,7 +17,7 @@ class WebScreenshot:
     使用 Playwright 实现，支持 JavaScript 渲染的现代网页。
     """
     
-    def __init__(self, headless=True, browser_type='chromium'):
+    def __init__(self, headless: bool = True, browser_type: str = 'chromium') -> None:
         """
         初始化截图工具
         
@@ -43,12 +44,12 @@ class WebScreenshot:
         if self.playwright:
             self.playwright.stop()
     
-    def capture(self, url, output_path, 
-                full_page=True, 
-                viewport_width=1920, 
-                viewport_height=1080,
-                wait_time=0,
-                wait_for_selector=None):
+    def capture(self, url: str, output_path: str, 
+                full_page: bool = True, 
+                viewport_width: int = 1920, 
+                viewport_height: int = 1080,
+                wait_time: int = 0,
+                wait_for_selector: Optional[str] = None) -> str:
         """
         截取网页
         
@@ -158,10 +159,10 @@ class WebScreenshot:
         finally:
             page.close()
     
-    def capture_batch(self, urls, output_folder, 
-                     full_page=True,
-                     viewport_width=1920,
-                     viewport_height=1080):
+    def capture_batch(self, urls: List[str], output_folder: str, 
+                     full_page: bool = True,
+                     viewport_width: int = 1920,
+                     viewport_height: int = 1080) -> List[Optional[str]]:
         """
         批量截取多个网页
         
